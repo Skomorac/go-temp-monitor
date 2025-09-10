@@ -1,15 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os/exec"
-	"strings"
 	"strconv"
-	"bytes"
+	"strings"
 	"sync"
 	"time"
-	"encoding/json"
 )
 
 // SystemData holds all temperature data and uses a mutex for safe access.
@@ -84,7 +84,7 @@ func monitorTemperature() {
 			data.temperatures = data.temperatures[1:]
 		}
 
-		fmt.Printf("Current GPU temperature: %d°C\n", data.currentTemp)
+		//fmt.Printf("Current GPU temperature: %d°C\n", data.currentTemp)
 
 		data.mu.Unlock()
 

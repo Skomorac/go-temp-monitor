@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="hr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GPU Temperaturni Monitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap");
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #0d1117;
+        color: #c9d1d9;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 2rem;
+      }
+      .container {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 1rem;
+        padding: 2rem;
+        max-width: 900px;
+        width: 100%;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(5px);
+      }
+      .header {
+        border-bottom: 2px solid #30363d;
+        padding-bottom: 1rem;
+        margin-bottom: 1.5rem;
+      }
+      .stat-card {
+        background-color: #0d1117;
+        border: 1px solid #30363d;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+      }
+      .temp-display {
+        font-size: 4rem;
+        font-weight: 700;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+      }
+      .unit {
+        font-size: 1.5rem;
+        color: #7d8590;
+      }
+      canvas {
+        background-color: #0d1117;
+        border: 1px solid #30363d;
+        border-radius: 0.75rem;
+        margin-top: 2rem;
+        width: 100%;
+        height: auto;
+        max-height: 300px;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-900 text-gray-200">
+    <div id="root"></div>
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="text/babel">
+      const { useState, useEffect } = React;
+      const { createRoot } = ReactDOM;
+
+      const API_URL = "http://localhost:8081/data";
+
+      // Chart.js globalna varijabla
+      let tempChart;
+
+      const App = () => {
+        const [currentTemp, setCurrentTemp] = useState("--");
+        const [minTemp, setMinTemp] = useState("--");
+        const [maxTemp, setMaxTemp] = useState("--");
+        const [temperatures, setTemperatures] = useState([]);
+
+        useEffect(() => {
+          const chartContext = document.getElementById("tempChart");
+          if (chartContext && !tempChart) {
+            tempChart = new Chart(chartContext, {
+              type: "line",
+              data: {
+                labels: [], // Dinamički postavljamo kasnije
+                datasets: [
+                  {
+                    label: "Temperatura (°C)",
+                    data: [],
+                    borderColor: "#10b981",
+                    backgroundColor: "rgba(16, 185, 129, 0.1)",
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.4,
+                    fill: true,
+                  },
+                ],
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  x: {
+                    display: false,
+                  },
+                  y: {
+                    min: 30,
+                    max: 90,
+                    ticks: {
+                      color: "#c9d1d9",
+                    },
+                    grid: {
+                      color: "#30363d",
+                    },
+                  },
+                },
+                plugins: {
+                  legend: {
+                    labels: {
+                      color: "#c9d1d9",
+                    },
+                  },
+                  tooltip: {
+                    enabled: true,
+                  },
+                },
+              },
+            });
+          }
+
+          const fetchData = async () => {
+            try {
+              const response = await fetch(API_URL);
+              if (!response.ok) {
+                throw new Error("Mrežni odgovor nije bio u redu");
+              }
+              const data = await response.json();
+
+              setCurrentTemp(
+                data.currentTemp !== undefined ? data.currentTemp : "--"
+              );
+              setMinTemp(data.minTemp !== undefined ? data.minTemp : "--");
+              setMaxTemp(data.maxTemp !== undefined ? data.maxTemp : "--");
+              setTemperatures(data.temperatures || []);
+
+              // Ažuriranje grafikona
+              if (tempChart) {
+                // Dinamički postavi labela prema duljini temperature niza
+                tempChart.data.labels = data.temperatures.map((_, i) => i + 1);
+                tempChart.data.datasets[0].data = data.temperatures;
+                tempChart.update("none");
+              }
+            } catch (error) {
+              console.error("Greška pri dohvatanju podataka:", error);
+            }
+          };
+
+          fetchData();
+          const intervalId = setInterval(fetchData, 1000);
+
+          return () => clearInterval(intervalId);
+        }, []);
+
+        // Izračunaj prikazani period
+        const seconds = temperatures.length;
+        const minutes = Math.floor(seconds / 60);
+        const remSeconds = seconds % 60;
+        let periodText = "";
+        if (seconds === 0) {
+          periodText = "Nema podataka";
+        } else if (minutes > 0) {
+          periodText = `Prikazano: ${minutes} min ${remSeconds} sekundi`;
+        } else {
+          periodText = `Prikazano: ${remSeconds} sekundi`;
+        }
+
+        return (
+          <div className="flex justify-center items-center min-h-screen p-8 bg-[#0d1117] text-[#c9d1d9] font-[Inter]">
+            <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-8 max-w-4xl w-full shadow-lg backdrop-blur-md">
+              <div className="text-center border-b-2 border-[#30363d] pb-4 mb-6">
+                <h1 className="text-4xl sm:text-5xl font-bold mb-2 text-white">
+                  GPU Temperature Monitor
+                </h1>
+                <p className="text-[#a8a8a8]">
+                  Prikaz temperature, statistike i grafikona u realnom vremenu
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                <div className="bg-[#0d1117] border border-[#30363d] rounded-xl p-6 flex flex-col items-center justify-center shadow-md">
+                  <div className="text-[#a8a8a8] text-sm mb-2">Trenutna</div>
+                  <div className="text-5xl font-bold leading-none text-[#33e2a0]">
+                    {currentTemp}
+                  </div>
+                  <div className="text-2xl text-[#a8a8a8]">°C</div>
+                </div>
+                <div className="bg-[#0d1117] border border-[#30363d] rounded-xl p-6 flex flex-col items-center justify-center shadow-md">
+                  <div className="text-[#a8a8a8] text-sm mb-2">Maksimalna</div>
+                  <div className="text-5xl font-bold leading-none text-[#ff6b6b]">
+                    {maxTemp}
+                  </div>
+                  <div className="text-2xl text-[#a8a8a8]">°C</div>
+                </div>
+                <div className="bg-[#0d1117] border border-[#30363d] rounded-xl p-6 flex flex-col items-center justify-center shadow-md">
+                  <div className="text-[#a8a8a8] text-sm mb-2">Minimalna</div>
+                  <div className="text-5xl font-bold leading-none text-[#51a7ff]">
+                    {minTemp}
+                  </div>
+                  <div className="text-2xl text-[#a8a8a8]">°C</div>
+                </div>
+              </div>
+
+              <div className="mt-8 h-80">
+                <canvas id="tempChart"></canvas>
+              </div>
+              <div className="text-center mt-4 text-[#a8a8a8] text-lg">
+                {periodText}
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      const container = document.getElementById("root");
+      const root = createRoot(container);
+      root.render(<App />);
+    </script>
+  </body>
+</html>
